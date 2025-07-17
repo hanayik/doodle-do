@@ -9,6 +9,85 @@ import {
   GripVertical,
 } from "lucide-react";
 
+const DB_NAME = "DoodleDoDrawings";
+const DB_VERSION = 1;
+const STORE_NAME = "strokes";
+
+interface StoredDrawing {
+  id: string;
+  strokes: Stroke[];
+  currentStrokeIndex: number;
+  lastModified: number;
+}
+
+const openDatabase = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      }
+    };
+  });
+};
+
+const saveDrawing = async (strokes: Stroke[], currentStrokeIndex: number): Promise<void> => {
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([STORE_NAME], "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    
+    const drawing: StoredDrawing = {
+      id: "current",
+      strokes,
+      currentStrokeIndex,
+      lastModified: Date.now(),
+    };
+    
+    store.put(drawing);
+    
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } catch (error) {
+    console.error("Failed to save drawing:", error);
+  }
+};
+
+const loadDrawing = async (): Promise<{ strokes: Stroke[]; currentStrokeIndex: number } | null> => {
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([STORE_NAME], "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    
+    return new Promise((resolve, reject) => {
+      const request = store.get("current");
+      
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const result = request.result as StoredDrawing;
+        if (result) {
+          resolve({
+            strokes: result.strokes,
+            currentStrokeIndex: result.currentStrokeIndex,
+          });
+        } else {
+          resolve(null);
+        }
+      };
+    });
+  } catch (error) {
+    console.error("Failed to load drawing:", error);
+    return null;
+  }
+};
+
 const vertexShaderSource = `#version 300 es
 in vec2 a_position;
 uniform vec2 u_resolution;
@@ -498,6 +577,7 @@ const DrawingCanvas = () => {
   const [highlighterOpacity, setHighlighterOpacity] = useState(10);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [currentStrokeIndex, setCurrentStrokeIndex] = useState(-1);
+  const [isLoading, setIsLoading] = useState(true);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<WebGL2RenderingContext | null>(null);
@@ -602,23 +682,34 @@ const DrawingCanvas = () => {
 
   const handleUndo = () => {
     if (currentStrokeIndex >= 0) {
-      setCurrentStrokeIndex(currentStrokeIndex - 1);
+      const newIndex = currentStrokeIndex - 1;
+      setCurrentStrokeIndex(newIndex);
+      saveDrawing(strokes, newIndex);
     }
   };
 
   const handleRedo = () => {
     if (currentStrokeIndex < strokes.length - 1) {
-      setCurrentStrokeIndex(currentStrokeIndex + 1);
+      const newIndex = currentStrokeIndex + 1;
+      setCurrentStrokeIndex(newIndex);
+      saveDrawing(strokes, newIndex);
     }
   };
 
   const handleClear = () => {
     setStrokes([]);
     setCurrentStrokeIndex(-1);
+    saveDrawing([], -1);
     const gl = glRef.current;
     if (!gl) return;
     gl.clearColor(1.0, 1.0, 1.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
+  };
+
+  const updateStrokesAndSave = (newStrokes: Stroke[], newIndex: number) => {
+    setStrokes(newStrokes);
+    setCurrentStrokeIndex(newIndex);
+    saveDrawing(newStrokes, newIndex);
   };
 
   const createShader = (
@@ -816,8 +907,21 @@ const DrawingCanvas = () => {
   }, [currentStrokeIndex, strokes]);
 
   useEffect(() => {
+    const initializeDrawing = async () => {
+      const savedDrawing = await loadDrawing();
+      if (savedDrawing) {
+        setStrokes(savedDrawing.strokes);
+        setCurrentStrokeIndex(savedDrawing.currentStrokeIndex);
+      }
+      setIsLoading(false);
+    };
+
+    initializeDrawing();
+  }, []);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || isLoading) return;
 
     const gl = canvas.getContext("webgl2", {
       antialias: true,
@@ -907,7 +1011,7 @@ const DrawingCanvas = () => {
       gl.deleteShader(fragmentShader);
       if (positionBuffer) gl.deleteBuffer(positionBuffer);
     };
-  }, []);
+  }, [isLoading]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -957,8 +1061,7 @@ const DrawingCanvas = () => {
         ...strokes.slice(0, currentStrokeIndex + 1),
         newStroke,
       ];
-      setStrokes(newStrokes);
-      setCurrentStrokeIndex(newStrokes.length - 1);
+      updateStrokesAndSave(newStrokes, newStrokes.length - 1);
       currentStrokeRef.current = [];
     }
   };
