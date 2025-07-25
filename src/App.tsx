@@ -316,6 +316,8 @@ const Toolbar = ({
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   const handleDragStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     setIsDragging(true);
     const rect = e.currentTarget
       .closest("[data-toolbar]")
@@ -370,6 +372,9 @@ const Toolbar = ({
         boxShadow: "0 2px 20px rgba(0, 0, 0, 0.1)",
         backdropFilter: "blur(10px)",
         cursor: isDragging ? "grabbing" : "default",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+        touchAction: "none",
       }}
     >
       <div style={{ display: "flex", gap: 10 }}>
