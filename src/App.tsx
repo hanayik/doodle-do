@@ -314,6 +314,7 @@ const Toolbar = ({
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [isCompact, setIsCompact] = useState(false);
 
   const handleDragStart = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -353,6 +354,19 @@ const Toolbar = ({
     }
   }, [isDragging, dragOffset]);
 
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsCompact(window.innerWidth <= 480);
+    };
+    
+    checkScreenSize();
+    window.addEventListener("resize", checkScreenSize);
+    
+    return () => {
+      window.removeEventListener("resize", checkScreenSize);
+    };
+  }, []);
+
   return (
     <div
       data-toolbar
@@ -365,24 +379,26 @@ const Toolbar = ({
           position.x === 0 && position.y === 0 ? "translateX(-50%)" : "none",
         backgroundColor: "rgba(255, 255, 255, 0.95)",
         borderRadius: 20,
-        padding: "10px 20px",
+        padding: isCompact ? "10px" : "10px 20px",
         display: "flex",
+        flexDirection: isCompact ? "column" : "row",
         alignItems: "center",
-        gap: 15,
+        gap: isCompact ? 10 : 15,
         boxShadow: "0 2px 20px rgba(0, 0, 0, 0.1)",
         backdropFilter: "blur(10px)",
         cursor: isDragging ? "grabbing" : "default",
         userSelect: "none",
         WebkitUserSelect: "none",
         touchAction: "none",
+        maxWidth: isCompact ? "calc(100vw - 20px)" : "none",
       }}
     >
-      <div style={{ display: "flex", gap: 10 }}>
+      <div style={{ display: "flex", gap: isCompact ? 5 : 10 }}>
         <button
           onClick={onUndo}
           style={{
-            width: 40,
-            height: 40,
+            width: isCompact ? 35 : 40,
+            height: isCompact ? 35 : 40,
             borderRadius: "50%",
             border: "none",
             backgroundColor: "#f0f0f0",
@@ -392,13 +408,13 @@ const Toolbar = ({
             justifyContent: "center",
           }}
         >
-          <Undo size={18} />
+          <Undo size={isCompact ? 16 : 18} />
         </button>
         <button
           onClick={onRedo}
           style={{
-            width: 40,
-            height: 40,
+            width: isCompact ? 35 : 40,
+            height: isCompact ? 35 : 40,
             borderRadius: "50%",
             border: "none",
             backgroundColor: "#f0f0f0",
@@ -408,37 +424,39 @@ const Toolbar = ({
             justifyContent: "center",
           }}
         >
-          <Redo size={18} />
+          <Redo size={isCompact ? 16 : 18} />
         </button>
       </div>
 
-      <div style={{ width: 1, height: 30, backgroundColor: "#e0e0e0" }} />
+      <div style={{ width: isCompact ? 60 : 1, height: isCompact ? 1 : 30, backgroundColor: "#e0e0e0" }} />
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <OpacitySlider
-          opacity={
-            selectedTool === "pen"
-              ? penOpacity
-              : selectedTool === "highlighter"
-              ? highlighterOpacity
-              : 100
-          }
-          onOpacityChange={onOpacityChange}
-        />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexDirection: isCompact ? "row" : "row" }}>
+        {!isCompact && (
+          <OpacitySlider
+            opacity={
+              selectedTool === "pen"
+                ? penOpacity
+                : selectedTool === "highlighter"
+                ? highlighterOpacity
+                : 100
+            }
+            onOpacityChange={onOpacityChange}
+          />
+        )}
         <div
           style={{
             display: "flex",
             flexDirection: "column",
             gap: 8,
-            minWidth: 170,
+            minWidth: isCompact ? "auto" : 170,
           }}
         >
-          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          <div style={{ display: "flex", gap: isCompact ? 5 : 10, justifyContent: "center" }}>
             <button
               onClick={() => onToolChange("pen")}
               style={{
-                width: 40,
-                height: 40,
+                width: isCompact ? 35 : 40,
+                height: isCompact ? 35 : 40,
                 borderRadius: 10,
                 border: "none",
                 backgroundColor:
@@ -449,13 +467,13 @@ const Toolbar = ({
                 justifyContent: "center",
               }}
             >
-              <Pen size={20} />
+              <Pen size={isCompact ? 16 : 20} />
             </button>
             <button
               onClick={() => onToolChange("highlighter")}
               style={{
-                width: 40,
-                height: 40,
+                width: isCompact ? 35 : 40,
+                height: isCompact ? 35 : 40,
                 borderRadius: 10,
                 border: "none",
                 backgroundColor:
@@ -466,13 +484,13 @@ const Toolbar = ({
                 justifyContent: "center",
               }}
             >
-              <Highlighter size={20} />
+              <Highlighter size={isCompact ? 16 : 20} />
             </button>
             <button
               onClick={() => onToolChange("eraser")}
               style={{
-                width: 40,
-                height: 40,
+                width: isCompact ? 35 : 40,
+                height: isCompact ? 35 : 40,
                 borderRadius: 10,
                 border: "none",
                 backgroundColor:
@@ -483,13 +501,13 @@ const Toolbar = ({
                 justifyContent: "center",
               }}
             >
-              <Eraser size={20} />
+              <Eraser size={isCompact ? 16 : 20} />
             </button>
             <button
               onClick={onClear}
               style={{
-                width: 40,
-                height: 40,
+                width: isCompact ? 35 : 40,
+                height: isCompact ? 35 : 40,
                 borderRadius: 10,
                 border: "none",
                 backgroundColor: "#ffb3b3",
@@ -500,7 +518,7 @@ const Toolbar = ({
                 justifyContent: "center",
               }}
             >
-              <Trash2 size={18} />
+              <Trash2 size={isCompact ? 15 : 18} />
             </button>
           </div>
           <div style={{ width: "100%" }}>
@@ -514,13 +532,13 @@ const Toolbar = ({
         </div>
       </div>
 
-      <div style={{ width: 1, height: 30, backgroundColor: "#e0e0e0" }} />
+      <div style={{ width: isCompact ? 60 : 1, height: isCompact ? 1 : 30, backgroundColor: "#e0e0e0" }} />
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 8,
+          gridTemplateColumns: isCompact ? "repeat(6, 1fr)" : "repeat(3, 1fr)",
+          gap: isCompact ? 5 : 8,
         }}
       >
         {colors.map((color) => (
@@ -528,12 +546,12 @@ const Toolbar = ({
             key={color}
             onClick={() => onColorChange(color)}
             style={{
-              width: 32,
-              height: 32,
+              width: isCompact ? 25 : 32,
+              height: isCompact ? 25 : 32,
               borderRadius: "50%",
               border:
                 selectedColor === color
-                  ? "3px solid #007AFF"
+                  ? `${isCompact ? 2 : 3}px solid #007AFF`
                   : "2px solid #e0e0e0",
               backgroundColor: color,
               cursor: "pointer",
@@ -558,9 +576,9 @@ const Toolbar = ({
       <button
         onPointerDown={handleDragStart}
         style={{
-          marginLeft: 10,
-          width: 40,
-          height: 40,
+          marginLeft: isCompact ? 0 : 10,
+          width: isCompact ? 35 : 40,
+          height: isCompact ? 35 : 40,
           borderRadius: "50%",
           border: "none",
           backgroundColor: "#f0f0f0",
@@ -568,7 +586,7 @@ const Toolbar = ({
           color: "#666",
         }}
       >
-        <GripVertical size={20} />
+        <GripVertical size={isCompact ? 16 : 20} />
       </button>
     </div>
   );
