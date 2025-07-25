@@ -8,53 +8,23 @@ import {
   Trash2,
   GripVertical,
 } from "lucide-react";
-
-const DB_NAME = "DoodleDoDrawings";
-const DB_VERSION = 1;
-const STORE_NAME = "strokes";
+import { get, set } from "idb-keyval";
 
 interface StoredDrawing {
-  id: string;
   strokes: Stroke[];
   currentStrokeIndex: number;
   lastModified: number;
 }
 
-const openDatabase = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
-      }
-    };
-  });
-};
-
 const saveDrawing = async (strokes: Stroke[], currentStrokeIndex: number): Promise<void> => {
   try {
-    const db = await openDatabase();
-    const transaction = db.transaction([STORE_NAME], "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    
     const drawing: StoredDrawing = {
-      id: "current",
       strokes,
       currentStrokeIndex,
       lastModified: Date.now(),
     };
     
-    store.put(drawing);
-    
-    return new Promise((resolve, reject) => {
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    });
+    await set("currentDrawing", drawing);
   } catch (error) {
     console.error("Failed to save drawing:", error);
   }
@@ -62,26 +32,14 @@ const saveDrawing = async (strokes: Stroke[], currentStrokeIndex: number): Promi
 
 const loadDrawing = async (): Promise<{ strokes: Stroke[]; currentStrokeIndex: number } | null> => {
   try {
-    const db = await openDatabase();
-    const transaction = db.transaction([STORE_NAME], "readonly");
-    const store = transaction.objectStore(STORE_NAME);
-    
-    return new Promise((resolve, reject) => {
-      const request = store.get("current");
-      
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const result = request.result as StoredDrawing;
-        if (result) {
-          resolve({
-            strokes: result.strokes,
-            currentStrokeIndex: result.currentStrokeIndex,
-          });
-        } else {
-          resolve(null);
-        }
+    const result = await get<StoredDrawing>("currentDrawing");
+    if (result) {
+      return {
+        strokes: result.strokes,
+        currentStrokeIndex: result.currentStrokeIndex,
       };
-    });
+    }
+    return null;
   } catch (error) {
     console.error("Failed to load drawing:", error);
     return null;
@@ -719,10 +677,10 @@ const DrawingCanvas = () => {
     }
   };
 
-  const handleClear = () => {
+  const handleClear = async () => {
     setStrokes([]);
     setCurrentStrokeIndex(-1);
-    saveDrawing([], -1);
+    await saveDrawing([], -1);
     const gl = glRef.current;
     if (!gl) return;
     gl.clearColor(1.0, 1.0, 1.0, 1.0);
@@ -924,10 +882,10 @@ const DrawingCanvas = () => {
   };
 
   useEffect(() => {
-    if (glRef.current && colorLocationRef.current) {
+    if (glRef.current && colorLocationRef.current && !isLoading) {
       redrawCanvas();
     }
-  }, [currentStrokeIndex, strokes]);
+  }, [currentStrokeIndex, strokes, isLoading]);
 
   useEffect(() => {
     const initializeDrawing = async () => {
@@ -1026,6 +984,11 @@ const DrawingCanvas = () => {
     window.addEventListener("resize", resizeCanvas);
 
     gl.useProgram(program);
+
+    // Redraw the canvas after WebGL is initialized to show any loaded drawing
+    if (strokes.length > 0) {
+      redrawCanvas();
+    }
 
     return () => {
       window.removeEventListener("resize", resizeCanvas);
